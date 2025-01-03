@@ -21,23 +21,6 @@ class VKBot:
         'auth_key': '3a548454f70391405932bf4769761acc',
         'viewer_id': '214163323'
     }
-
-    def __init__(self):
-        self.db = sqlite3.connect('lots.db')
-        self.cursor = self.db.cursor()
-        self.create_table()
-
-    def create_table(self):
-        self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS purchases (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_id INTEGER,
-            price INTEGER,
-            time TEXT
-        )
-        ''')
-        self.db.commit()
-
     def buy_lot(self, lot_id: int, user_id: int):
         param = copy.deepcopy(self.params)
         param['act'] = 'a_program_say'
@@ -96,6 +79,21 @@ class VKBotGUI(Tk):
         self.configure(bg="#f0f0f0")
 
         self.create_widgets()
+
+        self.db = sqlite3.connect('lots.db')
+        self.cursor = self.db.cursor()
+        self.create_table()
+
+    def create_table(self):
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS purchases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER,
+            price INTEGER,
+            time TEXT
+        )
+        ''')
+        self.db.commit()
 
     def create_widgets(self):
         self.lots_button = tk.Button(self, text="View Lots", width=20)
