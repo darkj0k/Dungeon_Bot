@@ -2,11 +2,13 @@ import copy
 import json
 import logging
 import tkinter as tk
+from tkinter import Tk
 from datetime import datetime
 from tkinter import messagebox
 import sqlite3
 import requests
 import multiprocessing
+
 
 class VKBot:
     headers = {
@@ -47,24 +49,25 @@ class VKBot:
         }
         requests.post(url="https://vip3.activeusers.ru/app.php", params=param, data=data, headers=self.headers)
 
-    def log_purchase(self, item_id, price):
-        time_of_purchase = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        self.cursor.execute("INSERT INTO purchases (item_id, price, time) VALUES (?, ?, ?)",
-                            (item_id, price, time_of_purchase))
-        self.db.commit()
-
     def monitoring(self, item_id: int, max_price: int, user_id: int):
+        db_conn = sqlite3.connect('lots.db')
+        cursor = db_conn.cursor()
+
         while True:
             cheapest_lot_id, price = self.get_cheapest_lot(item_id, max_price)
             if cheapest_lot_id:
                 self.buy_lot(cheapest_lot_id, user_id)
-                self.log_purchase(cheapest_lot_id, max_price)
+                time_of_purchase = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                cursor.execute("INSERT INTO purchases (item_id, price, time) VALUES (?, ?, ?)",
+                               (cheapest_lot_id, price, time_of_purchase))
+                db_conn.commit()
 
     def get_cheapest_lot(self, item_id: int, max_price: int):
         param = copy.deepcopy(self.params)
         param['act'] = 'a_program_run'
         data = f"code=51132l145l691d2fbd8b124d57&context=1&vars[item][id]={item_id}"
-        response = requests.post(url="https://vip3.activeusers.ru/app.php", params=param, data=data, headers=self.headers)
+        response = requests.post(url="https://vip3.activeusers.ru/app.php", params=param, data=data,
+                                 headers=self.headers)
         messages = response.json()
         list_lots = messages['message'][0]['message']
         list_lots = list_lots.split("\n")
@@ -82,7 +85,7 @@ class VKBot:
         return None, None
 
 
-class VKBotGUI(tk.Tk):
+class VKBotGUI(Tk):
     def __init__(self):
         super().__init__()
         self._id_current_item: int
@@ -118,6 +121,8 @@ class VKBotGUI(tk.Tk):
         self.stop_button = tk.Button(self, text="Stop", command=self.stop_monitoring, width=20)
         self.stop_button.pack(pady=10)
 
+        self.logs_panel = tk.LabelFrame(self, )
+
     def create_items_button(self):
         with open("items.json", "r") as f:
             items = json.load(f)
@@ -125,6 +130,16 @@ class VKBotGUI(tk.Tk):
                 item_id = item["id"]
                 title = item["title"]
                 tk.Button(self, text=title, command=lambda item_id=item_id: self.id_current_item(item_id)).pack(pady=5)
+
+    # def view_lots(self):
+    #     self.bot.cursor.execute("SELECT * FROM purchases")
+    #     purchases = self.bot.cursor.fetchall()
+    #     if purchases:
+    #         lots_text = "Your purchases:\n"
+    #         for purchase in purchases:
+    #             lots_text +=
+    #     else:
+    #         messagebox.showinfo("Purchased Lots", "No purchases made yet.")
 
     def id_current_item(self, item_id):
         self._id_current_item = item_id
@@ -150,7 +165,9 @@ class VKBotGUI(tk.Tk):
             messagebox.showerror("Error", "Monitoring is already running.")
             return
 
-        self.monitoring_process = multiprocessing.Process(target=self.bot.monitoring, args=(item_id, max_price, user_id))
+        # Запуск нового процесса
+        self.monitoring_process = multiprocessing.Process(target=self.bot.monitoring,
+                                                          args=(item_id, max_price, user_id))
         self.monitoring_process.start()
         messagebox.showinfo("Monitoring", f"Started monitoring item ID {item_id} with max price {max_price}₽.")
 
@@ -162,7 +179,9 @@ class VKBotGUI(tk.Tk):
         else:
             messagebox.showerror("Error", "Monitoring is not running.")
 
+
 if __name__ == '__main__':
-    multiprocessing.freeze_support()  # Для совместимости с Windows
+    multiprocessing.freeze_support()  # Рекомендуется для Windows
     app = VKBotGUI()
     app.mainloop()
+
